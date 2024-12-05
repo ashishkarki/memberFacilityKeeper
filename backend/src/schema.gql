@@ -1,0 +1,35 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type Membership {
+  membershipType: String!
+  startDate: DateTime!
+  endDate: DateTime!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+type Visit {
+  facilityName: String!
+  visitDateTime: DateTime!
+}
+
+type Member {
+  email: String!
+  firstName: String!
+  lastName: String!
+  membership: Membership!
+  visits: [Visit!]!
+}
+
+type Query {
+  """Get all members with optional filtering and pagination"""
+  getAllMembers(membershipType: String, limit: Float, offset: Float): [Member!]!
+
+  """Get a member by email"""
+  getMemberByEmail(email: String!): Member
+}
