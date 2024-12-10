@@ -16,6 +16,22 @@ This is a **NestJS-based backend** that serves as the foundation for a fitness m
 
 ---
 
+## **System Design Diagram**
+
+To better understand the backend architecture of this project, refer to the system design diagram below: [System Design Diagram](./memberFacilityKeeper-SystemDesign-Backend.png)
+
+The diagram outlines:
+
+1.  **Load Balancer (Future)**: Distributes incoming requests to multiple API instances.
+2.  **GraphQL API (NestJS)**: Handles queries (`getAllMembers`, `getMemberByEmail`) and mutations (planned for future updates).
+3.  **Data Layer**: Hardcoded data in `member.data.ts` (to be replaced with PostgreSQL in the future).
+4.  **Redis Cache (Future)**: Planned for optimizing frequently accessed queries.
+5.  **Logging & Monitoring**: Tracks errors and logs system performance.
+
+The file `SystemDesign-MembershipBackend.png` is saved in the root of the `backend` folder, alongside this README file.
+
+---
+
 ## **How to Run**
 
 1. Clone the repository:
