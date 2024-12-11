@@ -5,6 +5,9 @@ import { Visit } from './visit.model';
 @ObjectType()
 export class Member {
   @Field()
+  id: number;
+
+  @Field()
   email: string;
 
   @Field()

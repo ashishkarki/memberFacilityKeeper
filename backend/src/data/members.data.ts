@@ -3,6 +3,7 @@ import { MembershipType } from '../models/membership.model';
 
 export const members: Member[] = [
   {
+    id: 1,
     email: 'john.doe@example.com',
     firstName: 'John',
     lastName: 'Doe',
@@ -23,6 +24,7 @@ export const members: Member[] = [
     ],
   },
   {
+    id: 2,
     email: 'jane.smith@example.com',
     firstName: 'Jane',
     lastName: 'Smith',
@@ -39,6 +41,7 @@ export const members: Member[] = [
     ],
   },
   {
+    id: 3,
     email: 'bob.jones@example.com',
     firstName: 'Bob',
     lastName: 'Jones',

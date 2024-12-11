@@ -19,6 +19,7 @@ type Visit {
 }
 
 type Member {
+  id: Float!
   email: String!
   firstName: String!
   lastName: String!
