@@ -33,3 +33,8 @@ type Query {
   """Get a member by email"""
   getMemberByEmail(email: String!): Member
 }
+
+type Mutation {
+  """Invalidate members cache"""
+  invalidateCache: Boolean!
+}
