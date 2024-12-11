@@ -5,12 +5,16 @@ import { Logger, NotFoundException } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 import { MembershipType } from 'src/models/membership.model';
+import { PrismaService } from 'services/prisma.service';
 
 const logger = new Logger('MemberResolver');
 
 @Resolver(() => Member)
 export class MemberResolver {
-  constructor(@InjectRedis() private readonly redis: Redis) {}
+  constructor(
+    @InjectRedis() private readonly redis: Redis,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Query(() => [Member], {
     description: 'Get all members with optional filtering and pagination',
@@ -26,66 +30,65 @@ export class MemberResolver {
     // First check in the cache and if present, return
     const cacheKey = `members:${membershipType}:${limit}:${offset}`;
 
-    try {
-      const cachedMembers = await this.redis.get(cacheKey);
-
-      if (cachedMembers) {
-        logger.debug(`Cache hit from cache for key: ${cacheKey}`);
-        return JSON.parse(cachedMembers);
-      }
-
-      logger.log(`Cache miss for key: ${cacheKey}`);
-    } catch (error) {
-      logger.error(`Redis error: ${error.message}. Falling back to database.`);
+    const cachedMembers = await this.getFromCache(cacheKey);
+    if (cachedMembers && Array.isArray(cachedMembers)) {
+      return cachedMembers;
     }
 
     // If not in cache, query the database
-    logger.debug(
-      `Fetching members from database: membershipType=${membershipType}, limit=${limit}, offset=${offset}`,
+    const mappedMembersFromDb = await this.queryAllMembersFromDb(
+      membershipType,
+      limit,
+      offset,
     );
-    let filteredMembers = members; // TODO: hardcoded data for now
-    // // logger.debug(`filteredMembers.length: ${filteredMembers.length}`);
 
-    // Filter by membership type if provided
-    if (membershipType && membershipType !== 'ALL') {
-      filteredMembers = filteredMembers.filter(
-        (member) =>
-          member.membership.membershipType === membershipType.toUpperCase(),
-      );
-    }
+    // Save to cache
+    await this.saveToCache(cacheKey, mappedMembersFromDb);
 
-    // Apply pagination as well
-    // // logger.debug(`filteredMembers.length: ${filteredMembers.length}`);
-    const paginatedMembers = filteredMembers.slice(offset, offset + limit);
-
-    // Save to cache with TTL of 60 seconds
-    try {
-      logger.debug(`Trying to Cache members with key: ${cacheKey}`);
-
-      await this.redis.set(
-        cacheKey,
-        JSON.stringify(paginatedMembers),
-        'EX',
-        60,
-      );
-
-      logger.debug(`Successfully Cached members with key: ${cacheKey}`);
-    } catch (error) {
-      logger.debug(`Error Caching members with key: ${cacheKey}`);
-    }
-
-    return paginatedMembers;
+    // finally return
+    return mappedMembersFromDb;
   }
 
   @Query(() => Member, { nullable: true, description: 'Get a member by email' })
-  getMemberByEmail(@Args('email') email: string): Member {
-    const member = members.find((member) => member.email === email);
+  async getMemberByEmail(@Args('email') email: string): Promise<Member> {
+    const cacheKey = `members:email:${email.toLowerCase()}`;
 
-    if (!member) {
+    // First check in the cache
+    const cachedMember = await this.getFromCache(cacheKey);
+    if (cachedMember && !Array.isArray(cachedMember)) {
+      logger.debug(`Cache hit for member email: ${email}`);
+      return cachedMember;
+    }
+
+    // If not in cache, query the database
+    logger.debug(`Fetching member from DB for email: ${email}`);
+    const memberFromDb = await this.prisma.member.findUnique({
+      where: { email: email.toLowerCase() },
+      include: {
+        membership: true,
+        visits: true,
+      },
+    });
+
+    if (!memberFromDb) {
       throw new NotFoundException(`Member with email ${email} not found`);
     }
 
-    return member;
+    // Map memberFromDb to GraphQL type
+    const mappedMember = {
+      ...memberFromDb,
+      membership: {
+        ...memberFromDb.membership,
+        membershipType: memberFromDb.membership
+          .membershipType as MembershipType,
+      },
+    };
+
+    // Save to cache
+    await this.saveToCache(cacheKey, mappedMember);
+
+    // finally return
+    return mappedMember;
   }
 
   @Mutation(() => Boolean, { description: 'Invalidate members cache' })
@@ -104,6 +107,99 @@ export class MemberResolver {
       logger.error(`Failed to invalidate cache: ${error.message}`);
       return false;
     }
+  }
+
+  // ---- Private Helper Functions ---- //
+
+  private async getFromCache(
+    cacheKey: string,
+  ): Promise<Member | Member[] | null> {
+    try {
+      const cachedData = await this.redis.get(cacheKey);
+      if (cachedData) {
+        logger.debug(`Cache hit for key: ${cacheKey}`);
+
+        // Restore Dates for Cached Data
+        const parsedData = JSON.parse(cachedData);
+
+        if (Array.isArray(parsedData)) {
+          return parsedData.map((member) => this.rehydrateMemberDates(member));
+        }
+
+        return this.rehydrateMemberDates(parsedData);
+      }
+      logger.debug(`Cache miss for key: ${cacheKey}`);
+    } catch (error) {
+      logger.error(`Redis error: ${error.message}. Proceeding without cache.`);
+    }
+    return null;
+  }
+
+  private async saveToCache(
+    cacheKey: string,
+    memberData: Member | Member[],
+  ): Promise<void> {
+    try {
+      await this.redis.set(
+        cacheKey,
+        JSON.stringify(memberData),
+        'EX',
+        60, // Cache TTL
+      );
+      logger.debug(`Cached members with key: ${cacheKey}`);
+    } catch (error) {
+      logger.error(`Error caching members: ${error.message}`);
+    }
+  }
+
+  private async queryAllMembersFromDb(
+    membershipType: string,
+    limit: number,
+    offset: number,
+  ): Promise<Member[]> {
+    logger.debug(
+      `Fetching members from database: membershipType=${membershipType}, limit=${limit}, offset=${offset}`,
+    );
+
+    const membersFromDb = await this.prisma.member.findMany({
+      where:
+        membershipType !== 'ALL'
+          ? {
+              membership: {
+                membershipType: membershipType.toUpperCase() as MembershipType,
+              },
+            }
+          : undefined,
+      include: {
+        membership: true,
+        visits: true,
+      },
+      skip: offset,
+      take: limit,
+    });
+
+    return membersFromDb.map((member) => ({
+      ...member,
+      membership: {
+        ...member.membership,
+        membershipType: member.membership.membershipType as MembershipType,
+      },
+    }));
+  }
+
+  private rehydrateMemberDates(member: any): Member {
+    return {
+      ...member,
+      membership: {
+        ...member.membership,
+        startDate: new Date(member.membership.startDate),
+        endDate: new Date(member.membership.endDate),
+      },
+      visits: member.visits.map((visit) => ({
+        ...visit,
+        visitDateTime: new Date(visit.visitDateTime),
+      })),
+    };
   }
 
   private validateMembershipType(membershipType: string): void {

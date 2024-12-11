@@ -32,6 +32,12 @@ The file `SystemDesign-MembershipBackend.png` is saved in the root of the `backe
 
 ---
 
+## System Design Decisions and their Reasoning
+
+For more information on design choices and architectural decisions, refer to the [Design and Decisions](./DESIGN_DECISIONS.md) document.
+
+---
+
 ## **How to Run**
 
 1. Clone the repository:
@@ -62,6 +68,125 @@ Import the provided Postman collection located at: `backend/memberFacilityKeeper
 
 ```
   yarn test
+```
+
+## **Redis Caching**
+
+This project includes Redis caching to improve performance for read-heavy GraphQL queries. Here’s how it works:
+
+1.  **Implementation**:
+
+    • The getAllMembers query caches filtered and paginated member results in Redis.
+
+    • A unique key is generated for each query using the pattern: members:<membershipType>:<limit>:<offset>.
+
+    • Cached data is retrieved first before querying the data source (currently members.data.ts).
+
+    • Data is cached with a Time-To-Live (TTL) of 60 seconds.
+
+2.  **Setup**:
+
+    • Redis is running locally via **OrbStack** (or any other Dockerized Redis instance).
+
+    • To start Redis:
+
+    ```
+    docker run redis
+    ```
+
+3.  **Configuration**:
+
+    • The Redis module configuration is in src/cache/cache.module.ts.
+
+    • Retry strategy ensures reconnections in case of Redis connection failures.
+
+4.  **How to Test**:
+
+    • Use Postman or any GraphQL client to query getAllMembers.
+
+    • Verify caching in the Redis CLI:
+
+```
+  redis-cli
+
+  keys *
+
+  get members:ALL:10:0
+```
+
+**Load Balancing**
+
+This project uses **Nginx** to demonstrate load balancing between multiple NestJS servers.
+
+1.  **Implementation**:
+
+    • Two instances of the NestJS API run on ports 3000 and 3001.
+
+    • Nginx is configured to distribute traffic between these instances using a round-robin strategy.
+
+2.  **Setup**:
+
+    • Install Nginx via Homebrew:
+
+    ```
+      brew install nginx
+    ```
+
+    • Start Nginx using the included configuration:
+
+    ```
+    yarn nginx:start
+    ```
+
+3.  **Nginx Configuration**:
+
+    • The Nginx configuration file (/opt/homebrew/etc/nginx/nginx.conf) includes:
+
+    ```
+        upstream mybackendserver {
+          server 127.0.0.1:3000;
+          server 127.0.0.1:3001;
+        }
+
+        server {
+
+        listen 8080;
+
+        location / {
+          proxy_pass http://mybackendserver;
+        }
+
+    }
+    ```
+
+4.  **Testing**:
+
+    • Start the servers with:
+
+    ```
+      yarn start:multi
+    ```
+
+    • Access the load balancer at [http://localhost:8080/graphql](http://localhost:8080/graphql).
+
+    • Observe the server logs to verify round-robin request distribution:
+
+    ```
+      [0] [NestJS Server: 3000] Handling request: POST /graphql
+
+      [1] [NestJS Server: 3001] Handling request: POST /graphql
+    ```
+
+5.  **Scripts for Nginx Management**:
+
+• Restart Nginx:
+`     yarn nginx:restart
+    `
+
+• View Nginx logs:
+
+```
+yarn nginx:logs
 ```
 
 ## **References**

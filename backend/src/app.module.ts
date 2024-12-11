@@ -4,6 +4,7 @@ import { GraphQLModule } from '@nestjs/graphql';
 import { join } from 'path';
 import { MemberResolver } from './resolvers/member.resolver';
 import { CacheModule } from './cache.module';
+import { PrismaService } from 'services/prisma.service';
 
 @Module({
   imports: [
@@ -13,6 +14,6 @@ import { CacheModule } from './cache.module';
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'), // auto generate schema
     }),
   ],
-  providers: [MemberResolver],
+  providers: [PrismaService, MemberResolver],
 })
 export class AppModule {}
