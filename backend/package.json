@@ -17,7 +17,12 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "nginx:restart": "brew services restart nginx && nginx -t && echo 'Nginx restarted successfully! Check http://localhost:8081'",
+    "nginx:logs": "tail -f /opt/homebrew/var/log/nginx/error.log",
+    "nginx:stop": "brew services stop nginx",
+    "nginx:start": "brew services start nginx",
+    "start:multi": "concurrently \"PORT=3000 yarn start:dev\" \"PORT=3001 yarn start:dev\""
   },
   "dependencies": {
     "@apollo/server": "^4.11.2",
@@ -47,6 +52,7 @@
     "@types/supertest": "^6.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "concurrently": "^9.1.0",
     "eslint": "^8.42.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-prettier": "^5.0.0",
