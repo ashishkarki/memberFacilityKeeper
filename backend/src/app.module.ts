@@ -4,7 +4,7 @@ import { GraphQLModule } from '@nestjs/graphql';
 import { join } from 'path';
 import { MemberResolver } from './resolvers/member.resolver';
 import { CacheModule } from './cache.module';
-import { PrismaService } from 'services/prisma.service';
+import { PrismaService } from 'src/services/prisma.service';
 
 @Module({
   imports: [

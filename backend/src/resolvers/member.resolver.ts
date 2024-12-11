@@ -1,11 +1,11 @@
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { Member } from '../models/member.model';
-import { members } from '../data/members.data';
 import { Logger, NotFoundException } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 import { MembershipType } from 'src/models/membership.model';
-import { PrismaService } from 'services/prisma.service';
+import { PrismaService } from 'src/services/prisma.service';
+import { MemberInput } from 'src/inputs/member.input';
 
 const logger = new Logger('MemberResolver');
 
@@ -89,6 +89,43 @@ export class MemberResolver {
 
     // finally return
     return mappedMember;
+  }
+
+  @Mutation(() => Member, { description: 'Create a new member' })
+  async createMember(@Args('member') member: MemberInput): Promise<Member> {
+    const createdMember = await this.prisma.member.create({
+      data: {
+        email: member.email,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        membership: {
+          create: {
+            membershipType: member.membership.membershipType,
+            startDate: member.membership.startDate,
+            endDate: member.membership.endDate,
+          },
+        },
+        visits: {
+          create: member.visits?.map((visit) => ({
+            facilityName: visit.facilityName,
+            visitDateTime: visit.visitDateTime,
+          })),
+        },
+      },
+      include: {
+        membership: true,
+        visits: true,
+      },
+    });
+
+    return {
+      ...createdMember,
+      membership: {
+        ...createdMember.membership,
+        membershipType: createdMember.membership
+          .membershipType as MembershipType,
+      },
+    };
   }
 
   @Mutation(() => Boolean, { description: 'Invalidate members cache' })
